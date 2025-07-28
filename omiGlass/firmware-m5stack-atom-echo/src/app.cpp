@@ -194,13 +194,6 @@ void setupAudio() {
     }
     
     Serial.println("I2S Audio initialized");
-    Serial.printf("  Sample Rate: %d Hz\n", AUDIO_SAMPLE_RATE);
-    Serial.printf("  Bits per Sample: %d\n", AUDIO_BITS_PER_SAMPLE);
-    Serial.printf("  Channels: %d\n", AUDIO_CHANNELS);
-    Serial.printf("  BCLK Pin: %d\n", I2S_BCLK_PIN);
-    Serial.printf("  LRC Pin: %d\n", I2S_LRC_PIN);
-    Serial.printf("  DOUT Pin: %d\n", I2S_DOUT_PIN);
-    Serial.printf("  DIN Pin: %d\n", I2S_DIN_PIN);
 }
 
 void setupBLE() {
@@ -397,9 +390,9 @@ void sendAudioData(int16_t* data, size_t length) {
     
     sentAudioFrames++;
     
-    // Debug info every 100 frames
-    if (sentAudioFrames % 100 == 0) {
-        Serial.printf("Sent %zu audio frames, %zu bytes\n", sentAudioFrames, sentAudioBytes);
+    // Reduced debug output
+    if (sentAudioFrames % 500 == 0) {
+        Serial.printf("Sent %zu frames\n", sentAudioFrames);
     }
 }
 
