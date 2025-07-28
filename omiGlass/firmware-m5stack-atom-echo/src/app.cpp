@@ -38,6 +38,7 @@ bool connected = false;
 size_t sentAudioBytes = 0;
 size_t sentAudioFrames = 0;
 bool audioDataUploading = false;
+uint16_t packetCounter = 0;  // Global packet counter for OMI protocol
 
 // =============================================================================
 // BLE SETUP
@@ -381,17 +382,43 @@ void processAudioData() {
 void sendAudioData(int16_t* data, size_t length) {
     if (!connected || !audioDataCharacteristic) return;
     
-    // Convert to bytes and send in chunks
+    // Convert to bytes  
     uint8_t* byteData = (uint8_t*)data;
     size_t totalBytes = length * sizeof(int16_t);
-    size_t chunkSize = BLE_CHUNK_SIZE;
     
-    for (size_t offset = 0; offset < totalBytes; offset += chunkSize) {
-        size_t currentChunkSize = min(chunkSize, totalBytes - offset);
+    // Calculate max packet size (MTU minus 3-byte header)
+    #define NET_BUFFER_HEADER_SIZE 3
+    #define DEFAULT_MTU 517  // BLE MTU size from config
+    size_t maxPacketSize = DEFAULT_MTU - NET_BUFFER_HEADER_SIZE;
+    
+    // Fragment and send data with proper OMI protocol headers
+    size_t offset = 0;
+    uint8_t chunkIndex = 0;
+    uint16_t currentPacketId = packetCounter;
+    packetCounter++; // Increment for next frame (wraps automatically at 65535)
+    
+    while (offset < totalBytes) {
+        // Calculate current chunk size  
+        size_t currentChunkSize = min(maxPacketSize, totalBytes - offset);
         
-        audioDataCharacteristic->setValue(byteData + offset, currentChunkSize);
+        // Create packet with 3-byte header + audio data
+        uint8_t packet[currentChunkSize + NET_BUFFER_HEADER_SIZE];
+        
+        // Add OMI protocol header
+        packet[0] = currentPacketId & 0xFF;        // Packet ID low byte
+        packet[1] = (currentPacketId >> 8) & 0xFF; // Packet ID high byte  
+        packet[2] = chunkIndex;                    // Index within current packet
+        
+        // Copy audio data after header
+        memcpy(packet + NET_BUFFER_HEADER_SIZE, byteData + offset, currentChunkSize);
+        
+        // Send the packet via BLE notification
+        audioDataCharacteristic->setValue(packet, currentChunkSize + NET_BUFFER_HEADER_SIZE);
         audioDataCharacteristic->notify();
         
+        // Update counters
+        offset += currentChunkSize;
+        chunkIndex++;
         sentAudioBytes += currentChunkSize;
         
         // Small delay to prevent overwhelming the BLE stack
@@ -400,9 +427,9 @@ void sendAudioData(int16_t* data, size_t length) {
     
     sentAudioFrames++;
     
-    // Reduced debug output
-    if (sentAudioFrames % 500 == 0) {
-        Serial.printf("Sent %zu frames\n", sentAudioFrames);
+    // Reduced debug output  
+    if (sentAudioFrames % 100 == 0) {
+        Serial.printf("Sent %zu frames (packet %d)\n", sentAudioFrames, currentPacketId);
     }
 }
 
