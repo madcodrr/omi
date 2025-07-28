@@ -11,7 +11,7 @@
 // =============================================================================
 // DEVICE CONFIGURATION
 // =============================================================================
-#define BLE_DEVICE_NAME "OMI Atom Echo"
+#define BLE_DEVICE_NAME "Omi"
 #define FIRMWARE_VERSION_STRING "1.0.0"
 #define HARDWARE_REVISION "ESP32-PICO-v1.0"
 #define MANUFACTURER_NAME "Based Hardware"
@@ -120,7 +120,8 @@ typedef enum {
 // =============================================================================
 #define OMI_SERVICE_UUID "19B10000-E8F2-537E-4F6C-D104768A1214"
 #define AUDIO_DATA_UUID "19B10001-E8F2-537E-4F6C-D104768A1214"
-#define AUDIO_CONTROL_UUID "19B10002-E8F2-537E-4F6C-D104768A1214"
+#define AUDIO_CODEC_UUID "19B10002-E8F2-537E-4F6C-D104768A1214"
+#define AUDIO_CONTROL_UUID "19B10004-E8F2-537E-4F6C-D104768A1214"
 
 // Battery Service UUID
 #define BATTERY_SERVICE_UUID (uint16_t)0x180F
