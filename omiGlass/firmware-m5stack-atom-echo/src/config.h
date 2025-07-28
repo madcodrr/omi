@@ -59,20 +59,20 @@
 #define AUDIO_SAMPLE_RATE 16000         // 16kHz for voice processing
 #define AUDIO_BITS_PER_SAMPLE 16        // 16-bit audio
 #define AUDIO_CHANNELS 1                // Mono audio
-#define AUDIO_BUFFER_SIZE 1024          // Audio buffer size
+#define AUDIO_BUFFER_SIZE 512           // Audio buffer size (reduced)
 #define AUDIO_DMA_BUFFER_COUNT 2        // Number of DMA buffers
-#define AUDIO_DMA_BUFFER_SIZE 512       // DMA buffer size
+#define AUDIO_DMA_BUFFER_SIZE 256       // DMA buffer size (reduced)
 
 // Audio Processing
 #define AUDIO_CAPTURE_INTERVAL_MS 100   // Capture audio every 100ms
-#define AUDIO_TASK_STACK_SIZE 4096      // Audio task stack size
+#define AUDIO_TASK_STACK_SIZE 2048      // Audio task stack size (reduced)
 #define AUDIO_TASK_PRIORITY 3           // High priority for audio
 
 // =============================================================================
 // BLE CONFIGURATION - Power optimized for extended battery life
 // =============================================================================
 #define BLE_MTU_SIZE 517                    // Maximum MTU for efficiency
-#define BLE_CHUNK_SIZE 500                  // Safe chunk size for audio transfer
+#define BLE_CHUNK_SIZE 250                  // Safe chunk size for audio transfer (reduced)
 #define BLE_AUDIO_TRANSFER_DELAY 5          // Delay for audio transfer
 #define BLE_TX_POWER ESP_PWR_LVL_P3         // Higher power for better range
 
@@ -85,7 +85,7 @@
 // Connection Management
 #define BLE_CONNECTION_TIMEOUT_MS 0         // Never timeout connections
 #define BLE_TASK_INTERVAL_MS 20000          // 20 second connection check
-#define BLE_TASK_STACK_SIZE 2048
+#define BLE_TASK_STACK_SIZE 1536
 #define BLE_TASK_PRIORITY 1
 
 // Connection Parameters
@@ -107,9 +107,9 @@ typedef enum {
 // =============================================================================
 // TASK CONFIGURATION
 // =============================================================================
-#define BATTERY_TASK_STACK_SIZE 2048
+#define BATTERY_TASK_STACK_SIZE 1024
 #define BATTERY_TASK_PRIORITY 1
-#define POWER_MANAGEMENT_TASK_STACK_SIZE 2048
+#define POWER_MANAGEMENT_TASK_STACK_SIZE 1024
 #define POWER_MANAGEMENT_TASK_PRIORITY 0
 
 // Status Reporting
