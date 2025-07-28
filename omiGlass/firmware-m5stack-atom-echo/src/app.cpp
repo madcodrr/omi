@@ -53,10 +53,12 @@ bool audioDataUploading = false;
 // Main OMI Service - using config.h UUIDs
 static BLEUUID serviceUUID(OMI_SERVICE_UUID);
 static BLEUUID audioDataUUID(AUDIO_DATA_UUID);
+static BLEUUID audioCodecUUID(AUDIO_CODEC_UUID);
 static BLEUUID audioControlUUID(AUDIO_CONTROL_UUID);
 
 // BLE Characteristics
 BLECharacteristic *audioDataCharacteristic;
+BLECharacteristic *audioCodecCharacteristic;
 BLECharacteristic *audioControlCharacteristic;
 BLECharacteristic *batteryLevelCharacteristic;
 
@@ -210,12 +212,20 @@ void setupBLE() {
     audioDataCharacteristic = pService->createCharacteristic(
         audioDataUUID,
         BLECharacteristic::PROPERTY_READ |
-        BLECharacteristic::PROPERTY_WRITE |
         BLECharacteristic::PROPERTY_NOTIFY
     );
     audioDataCharacteristic->addDescriptor(new BLE2902());
     
-    // Audio Control Characteristic
+    // Audio Codec Characteristic (read-only, returns codec type)
+    audioCodecCharacteristic = pService->createCharacteristic(
+        audioCodecUUID,
+        BLECharacteristic::PROPERTY_READ
+    );
+    // Set codec type: 0=PCM16, 1=PCM8, 20=OPUS (we use PCM16)
+    uint8_t codecType = 0; // PCM16
+    audioCodecCharacteristic->setValue(&codecType, 1);
+    
+    // Audio Control Characteristic (new UUID for control commands)
     audioControlCharacteristic = pService->createCharacteristic(
         audioControlUUID,
         BLECharacteristic::PROPERTY_READ |
