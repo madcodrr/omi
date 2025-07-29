@@ -76,6 +76,7 @@ void IRAM_ATTR buttonISR();
 void blinkLED(int count, int delayMs);
 void enableLightSleep();
 void sendAudioData(int16_t* data, size_t length);
+void restartI2S();
 
 // =============================================================================
 // BLE CALLBACKS
@@ -160,7 +161,9 @@ void setupButton() {
 }
 
 void setupAudio() {
-    // Configure I2S
+    Serial.println("Initializing I2S Audio...");
+    
+    // Enhanced I2S configuration for M5Stack Atom Echo
     i2s_config_t i2s_config = {
         .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_TX),
         .sample_rate = AUDIO_SAMPLE_RATE,
@@ -170,33 +173,53 @@ void setupAudio() {
         .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
         .dma_buf_count = AUDIO_DMA_BUFFER_COUNT,
         .dma_buf_len = AUDIO_DMA_BUFFER_SIZE,
-        .use_apll = false,
+        .use_apll = true,  // Enable APLL for stable clock generation
         .tx_desc_auto_clear = true,
-        .fixed_mclk = 0
+        .fixed_mclk = 0,
+        .mclk_multiple = I2S_MCLK_MULTIPLE_256,  // Add MCLK configuration
+        .bits_per_chan = I2S_BITS_PER_CHAN_16BIT  // Explicit bits per channel
     };
     
-    // I2S pin configuration
+    // I2S pin configuration for M5Stack Atom Echo
     i2s_pin_config_t pin_config = {
-        .bck_io_num = I2S_BCLK_PIN,
-        .ws_io_num = I2S_LRC_PIN,
-        .data_out_num = I2S_DOUT_PIN,
-        .data_in_num = I2S_DIN_PIN
+        .bck_io_num = I2S_BCLK_PIN,     // G19 - BCLK
+        .ws_io_num = I2S_LRC_PIN,       // G33 - LRCK (Word Select)
+        .data_out_num = I2S_DOUT_PIN,   // G22 - DataOut SPK-I2S
+        .data_in_num = I2S_DIN_PIN      // G23 - DataIn/MIC
     };
     
-    // Install and start I2S driver
+    // Install I2S driver with comprehensive error handling
     esp_err_t err = i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
     if (err != ESP_OK) {
-        Serial.printf("Failed to install I2S driver: %s\n", esp_err_to_name(err));
+        Serial.printf("❌ Failed to install I2S driver: %s\n", esp_err_to_name(err));
+        ledMode = LED_ERROR;
         return;
     }
+    Serial.println("✓ I2S driver installed");
     
+    // Set I2S pin configuration
     err = i2s_set_pin(I2S_NUM_0, &pin_config);
     if (err != ESP_OK) {
-        Serial.printf("Failed to set I2S pins: %s\n", esp_err_to_name(err));
+        Serial.printf("❌ Failed to set I2S pins: %s\n", esp_err_to_name(err));
+        ledMode = LED_ERROR;
         return;
     }
+    Serial.println("✓ I2S pins configured");
     
-    Serial.println("I2S Audio initialized");
+    // CRITICAL: Start I2S peripheral (this was missing!)
+    err = i2s_start(I2S_NUM_0);
+    if (err != ESP_OK) {
+        Serial.printf("❌ Failed to start I2S: %s\n", esp_err_to_name(err));
+        ledMode = LED_ERROR;
+        return;
+    }
+    Serial.println("✓ I2S peripheral started");
+    
+    // Clear DMA buffers to prevent initial noise
+    i2s_zero_dma_buffer(I2S_NUM_0);
+    Serial.println("✓ I2S DMA buffers cleared");
+    
+    Serial.println("🎵 I2S Audio initialization complete!");
 }
 
 void setupBLE() {
@@ -331,21 +354,39 @@ void startAudioCapture() {
         deviceState = DEVICE_RECORDING;
         ledMode = LED_RECORDING;
         
-        // Clear I2S buffer
+        // Stop I2S, clear buffers, and restart
+        i2s_stop(I2S_NUM_0);
         i2s_zero_dma_buffer(I2S_NUM_0);
+        esp_err_t err = i2s_start(I2S_NUM_0);
+        if (err != ESP_OK) {
+            Serial.printf("Failed to restart I2S for capture: %s\n", esp_err_to_name(err));
+            ledMode = LED_ERROR;
+            audioCapturing = false;
+            return;
+        }
         
-        Serial.println("Audio capture started");
+        Serial.println("🎤 Audio capture started");
         lastActivity = millis();
     }
 }
 
 void stopAudioCapture() {
     if (audioCapturing) {
+        // Send any remaining audio data before stopping
+        if (audioBufferIndex > 0 && connected && audioDataCharacteristic) {
+            sendAudioData(audioBuffer, audioBufferIndex);
+            audioBufferIndex = 0;
+        }
+        
         audioCapturing = false;
         deviceState = DEVICE_READY;
         ledMode = LED_READY;
         
-        Serial.println("Audio capture stopped");
+        // Stop I2S and clear buffers
+        i2s_stop(I2S_NUM_0);
+        i2s_zero_dma_buffer(I2S_NUM_0);
+        
+        Serial.println("⏹️ Audio capture stopped");
         lastActivity = millis();
     }
 }
@@ -355,16 +396,33 @@ void processAudioData() {
     
     size_t bytesRead = 0;
     int16_t i2sBuffer[AUDIO_DMA_BUFFER_SIZE];
+    static int errorCount = 0;
     
-    // Read audio data from I2S
-    esp_err_t result = i2s_read(I2S_NUM_0, i2sBuffer, sizeof(i2sBuffer), &bytesRead, 10);
+    // Read audio data from I2S with improved timeout
+    esp_err_t result = i2s_read(I2S_NUM_0, i2sBuffer, sizeof(i2sBuffer), &bytesRead, pdMS_TO_TICKS(100));
     
     if (result == ESP_OK && bytesRead > 0) {
         size_t samplesRead = bytesRead / sizeof(int16_t);
         
-        // Copy samples to main buffer
-        for (size_t i = 0; i < samplesRead && audioBufferIndex < AUDIO_BUFFER_SIZE; i++) {
-            audioBuffer[audioBufferIndex++] = i2sBuffer[i];
+        // Validate audio data quality
+        bool hasValidAudio = false;
+        int16_t maxSample = 0;
+        for (size_t i = 0; i < samplesRead; i++) {
+            int16_t sample = abs(i2sBuffer[i]);
+            if (sample > maxSample) maxSample = sample;
+            if (sample > AUDIO_VALIDATION_THRESHOLD) {
+                hasValidAudio = true;
+            }
+        }
+        
+        // Only process if we have valid audio signal
+        if (hasValidAudio || maxSample > 50) {
+            // Copy samples to main buffer
+            for (size_t i = 0; i < samplesRead && audioBufferIndex < AUDIO_BUFFER_SIZE; i++) {
+                audioBuffer[audioBufferIndex++] = i2sBuffer[i];
+            }
+            
+            errorCount = 0; // Reset error count on successful read
         }
         
         // Send data when buffer is full
@@ -376,6 +434,16 @@ void processAudioData() {
         }
         
         lastActivity = millis();
+    } else {
+        // Handle I2S read errors with recovery
+        errorCount++;
+        Serial.printf("I2S read error: %s (count: %d)\n", esp_err_to_name(result), errorCount);
+        
+        if (errorCount >= AUDIO_ERROR_RECOVERY_ATTEMPTS) {
+            Serial.println("Too many I2S errors, attempting restart...");
+            restartI2S();
+            errorCount = 0;
+        }
     }
 }
 
@@ -422,7 +490,7 @@ void sendAudioData(int16_t* data, size_t length) {
         sentAudioBytes += currentChunkSize;
         
         // Small delay to prevent overwhelming the BLE stack
-        delay(BLE_AUDIO_TRANSFER_DELAY);
+        if (chunkIndex > 0) delay(BLE_AUDIO_TRANSFER_DELAY);
     }
     
     sentAudioFrames++;
@@ -658,6 +726,31 @@ void readBatteryLevel() {
 
 void updateBatteryService() {
     readBatteryLevel();
+}
+
+// =============================================================================
+// I2S RECOVERY FUNCTIONS
+// =============================================================================
+
+void restartI2S() {
+    Serial.println("🔄 Attempting I2S restart...");
+    
+    // Stop current I2S operations
+    i2s_stop(I2S_NUM_0);
+    i2s_driver_uninstall(I2S_NUM_0);
+    
+    // Small delay to ensure clean shutdown
+    delay(100);
+    
+    // Reinitialize I2S with same configuration
+    setupAudio();
+    
+    // If we were capturing audio, restart capture
+    if (audioCapturing) {
+        audioBufferIndex = 0; // Reset buffer
+        i2s_zero_dma_buffer(I2S_NUM_0);
+        Serial.println("🔄 I2S restarted, resuming audio capture");
+    }
 }
 
 // =============================================================================
