@@ -111,11 +111,11 @@ static ssize_t speaker_haptic_handler(struct bt_conn *conn, const struct bt_gatt
 int speaker_init() 
 {
     LOG_INF("Speaker init");
-    audio_speaker = device_get_binding("I2S_0");
+    audio_speaker = DEVICE_DT_GET(DT_NODELABEL(i2s0));
     
     if (!device_is_ready(audio_speaker)) 
     {
-        LOG_ERR("Speaker device is not supported : %s", audio_speaker->name);
+        LOG_ERR("Speaker device is not ready");
         return -1;
     }
 
@@ -135,6 +135,9 @@ int speaker_init()
         return -1;
 	}
     gpio_pin_set_dt(&speaker_gpio_pin, 1);
+    
+    // Stop I2S before configuration to ensure clean state
+    i2s_trigger(audio_speaker, I2S_DIR_TX, I2S_TRIGGER_STOP);
     
     struct i2s_config config = {
     .word_size= WORD_SIZE, //how long is one left/right word.
@@ -190,7 +193,7 @@ uint16_t speak(uint16_t len, const void *buf) //direct from bt
         if (current_length > PACKET_SIZE) 
         {
             LOG_INF("Data length: %u", len);
-            current_length = current_length - PACKET_SIZE;
+            current_length = current_length - len;  // Use actual len instead of PACKET_SIZE
             LOG_INF("remaining data: %u", current_length);
 
             for (int i = 0; i < (int)(len/2); i++) 

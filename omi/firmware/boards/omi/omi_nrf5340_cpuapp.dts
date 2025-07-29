@@ -162,16 +162,16 @@
 	pinctrl-0 = <&pdm0_default>;
 	pinctrl-names = "default";
 	clock-source = "PCLK32M_HFXO";
-	// #address-cells = < 0x1 >;
-	// #size-cells = < 0x0 >;
-	// t5838: t5838@0 {
-	// 	status = "okay";
-	// 	compatible = "invensense,t5838";
-	// 	thsel-gpios = <&gpio1 5 GPIO_ACTIVE_HIGH>;
-	// 	wake-gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
-	// 	pdmclk-gpios = <&gpio1 1 GPIO_ACTIVE_HIGH>;
-	// 	reg = <0x0>;
-	// };
+	#address-cells = < 0x1 >;
+	#size-cells = < 0x0 >;
+	spm1423: spm1423@0 {
+		status = "okay";
+		compatible = "knowles,spm1423";
+		thsel-gpios = <&gpio1 5 GPIO_ACTIVE_HIGH>;
+		wake-gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
+		enable-gpios = <&gpio1 4 GPIO_ACTIVE_HIGH>;
+		reg = <0x0>;
+	};
 };
 
 &i2c2 {
