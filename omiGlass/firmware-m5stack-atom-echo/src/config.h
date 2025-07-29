@@ -59,14 +59,16 @@
 #define AUDIO_SAMPLE_RATE 16000         // 16kHz for voice processing
 #define AUDIO_BITS_PER_SAMPLE 16        // 16-bit audio
 #define AUDIO_CHANNELS 1                // Mono audio
-#define AUDIO_BUFFER_SIZE 512           // Audio buffer size (reduced)
-#define AUDIO_DMA_BUFFER_COUNT 2        // Number of DMA buffers
-#define AUDIO_DMA_BUFFER_SIZE 256       // DMA buffer size (reduced)
+#define AUDIO_BUFFER_SIZE 1024          // Increased audio buffer size for stability
+#define AUDIO_DMA_BUFFER_COUNT 4        // Increased DMA buffers (was 2, now 4)
+#define AUDIO_DMA_BUFFER_SIZE 512       // Increased DMA buffer size (was 256, now 512)
 
-// Audio Processing
-#define AUDIO_CAPTURE_INTERVAL_MS 100   // Capture audio every 100ms
-#define AUDIO_TASK_STACK_SIZE 2048      // Audio task stack size (reduced)
+// Audio Processing - Enhanced for M5Stack Atom Echo
+#define AUDIO_CAPTURE_INTERVAL_MS 50    // Capture audio every 50ms for better responsiveness
+#define AUDIO_TASK_STACK_SIZE 3072      // Increased stack size for I2S processing
 #define AUDIO_TASK_PRIORITY 3           // High priority for audio
+#define AUDIO_VALIDATION_THRESHOLD 100  // Minimum audio level to consider valid
+#define AUDIO_ERROR_RECOVERY_ATTEMPTS 3 // Number of I2S restart attempts
 
 // =============================================================================
 // BLE CONFIGURATION - Power optimized for extended battery life
